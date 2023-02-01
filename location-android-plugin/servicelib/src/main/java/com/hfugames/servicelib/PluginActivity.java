@@ -125,6 +125,9 @@ public class PluginActivity extends UnityPlayerActivity {
 
     @Override
     public void onRequestPermissionsResult(int _requestCode, @NonNull String[] _permissions, @NonNull int[] _grantResults) {
+
+        Log.d(TAG, "onRequestPermissionsResult -> " + _requestCode);
+
         super.onRequestPermissionsResult(_requestCode, _permissions, _grantResults);
         switch (_requestCode) {
             case REQUEST_CODE:
@@ -137,6 +140,7 @@ public class PluginActivity extends UnityPlayerActivity {
                 }
                 break;
             case REQUEST_CODE_ALL:
+                Log.d(TAG, "onRequestPermissionsResult::Inside the case");
                 boolean result = true;
                 for(int i =0; i < _grantResults.length; i++){
                     if(_grantResults[i] != PackageManager.PERMISSION_GRANTED) {
@@ -144,6 +148,8 @@ public class PluginActivity extends UnityPlayerActivity {
                         break;
                     }
                 }
+
+                Log.d(TAG, "onRequestPermissionsResult::Result => " + result);
                 permissionCallback.permissionResult(result);
                 break;
         }
