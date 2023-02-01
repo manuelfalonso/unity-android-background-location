@@ -26,6 +26,8 @@ import com.unity3d.player.UnityPlayerActivity;
 public class PluginActivity extends UnityPlayerActivity {
     private static final String TAG = "LocationServicePlugin";
     private static final int REQUEST_CODE = 1000;
+    private static final int REQUEST_CODE_ALL = 1001;
+
     private static Activity unityActivity;
     private static String unityClassName;
 
@@ -49,88 +51,32 @@ public class PluginActivity extends UnityPlayerActivity {
     public static Handler messageHandler = new MessageHandler();
 
     public static UnityCallback unityCallback = null;
+    public static PermissionUnityCallback permissionCallback = null;
 
-    protected void onCreate(Bundle savedInstanceState) {
-        // call UnityPlayerActivity.onCreate()
-        super.onCreate(savedInstanceState);
-        Log.d(TAG, "onCreate called!");
-    }
-
-    // Set unity class reference
+    //region [Setters]
     public void setUnityClassName(String _className) {
         unityClassName = _className;
     }
-
-    private void initPlugin() {
-        try {
-            if (unityActivity == null) throw new Exception("Undefined UnityActivity!");
-            //
-            createNotificationChannels();
-        } catch(Exception _e) {
-            Log.e(TAG, _e.getMessage());
-        }
-    }
-
-    private void backgroundLocationPermissionRationale() {
-        // will return true only if the application was launched earlier and the user
-        // "denied" the permission WITHOUT checking "never ask again".
-        if (ActivityCompat.shouldShowRequestPermissionRationale(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION)) {
-            ActivityCompat.requestPermissions(unityActivity, new String[]{
-                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            }, REQUEST_CODE);
-        }
-    }
-
     private void setUnityAcitvityContext(Activity _context) {
         unityActivity = _context;
     }
-
-    // Set notification channel for API Level >= 26
-    public static void createNotificationChannels() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel serviceChannel = new NotificationChannel(
-                    SERVICE_CHANNEL_ID,
-                    "ServiceChannel",
-                    NotificationManager.IMPORTANCE_HIGH
-            );
-            serviceChannel.setDescription("Notification Channel for Intent Service");
-
-            NotificationChannel notificationChannel = new NotificationChannel(
-                    NOTIFICATION_CHANNEL_ID,
-                    "NotificationChannel",
-                    NotificationManager.IMPORTANCE_LOW
-            );
-            notificationChannel.setDescription("Notification Channel for other Notifications");
-
-            NotificationManager manager = unityActivity.getSystemService(NotificationManager.class);
-            manager.createNotificationChannel(serviceChannel);
-            manager.createNotificationChannel(notificationChannel);
+    public void setDestination(double _latitude, double _longitude, String _destinationName, double _triggerRadius) {
+        Destination destination = new Destination();
+        destination.latitude = _latitude;
+        destination.longitude = _longitude;
+        destination.destinationName = _destinationName;
+        destination.triggerRadius = _triggerRadius;
+        Log.d(TAG, destination.latitude + "" + destination.longitude);
+        currentDestination = destination;
+        if (mBound) {
+            mService.setNewDestination(destination);
         }
     }
-
-    @Override
-    public void onRequestPermissionsResult(int _requestCode, @NonNull String[] _permissions, @NonNull int[] _grantResults) {
-        super.onRequestPermissionsResult(_requestCode, _permissions, _grantResults);
-
-        switch (_requestCode) {
-            case REQUEST_CODE:
-                if (_grantResults.length > 0) {
-                    if (_grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                        Log.d(TAG, "Location Permission granted!");
-                    } else if (_grantResults[0] == PackageManager.PERMISSION_DENIED) {
-                        Log.d(TAG, "Location Permission denied!");
-                    }
-                }
-                break;
-        }
+    public void setCallBackListener(UnityCallback callback) {
+        unityCallback = callback;
     }
-
-    private boolean locationPermissionGranted () {
-        return ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
-                && ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                && ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
-    }
-
+    //endregion
+    //region [ServiceHandling]
     public void startLocationService(int _interval, int _fastestInterval, int _smallestDisplacement, boolean _asForeground, String _foregroundIcon, String _notificationIcon) {
         try {
             if (isLocationServiceRunning) throw new Exception("Location Service already running!");
@@ -152,6 +98,61 @@ public class PluginActivity extends UnityPlayerActivity {
         } catch (Exception _e) {
             Log.e(TAG, _e.getMessage());
         }
+    }
+
+
+    public void stopLocationService() {
+        Log.d(TAG, "Stop location service...");
+
+        if (isLocationServiceRunning) {
+            unityActivity.unbindService(mConnection);
+            unityActivity.stopService(currentIntent);
+        }
+        isLocationServiceRunning = false;
+    }
+
+    //endregion
+    //region [Permissions]
+    private void backgroundLocationPermissionRationale() {
+        // will return true only if the application was launched earlier and the user
+        // "denied" the permission WITHOUT checking "never ask again".
+        if (ActivityCompat.shouldShowRequestPermissionRationale(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION)) {
+            ActivityCompat.requestPermissions(unityActivity, new String[]{
+                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            }, REQUEST_CODE);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int _requestCode, @NonNull String[] _permissions, @NonNull int[] _grantResults) {
+        super.onRequestPermissionsResult(_requestCode, _permissions, _grantResults);
+        switch (_requestCode) {
+            case REQUEST_CODE:
+                if (_grantResults.length > 0) {
+                    if (_grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                        Log.d(TAG, "Location Permission granted!");
+                    } else if (_grantResults[0] == PackageManager.PERMISSION_DENIED) {
+                        Log.d(TAG, "Location Permission denied!");
+                    }
+                }
+                break;
+            case REQUEST_CODE_ALL:
+                boolean result = true;
+                for(int i =0; i < _grantResults.length; i++){
+                    if(_grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+                        result = false;
+                        break;
+                    }
+                }
+                permissionCallback.permissionResult(result);
+                break;
+        }
+    }
+
+    private boolean locationPermissionGranted () {
+        return ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
     public void requestCoarseLocationPermission() {
@@ -178,7 +179,8 @@ public class PluginActivity extends UnityPlayerActivity {
         }
     }
 
-    public void requestAllLocationPermissions() {
+    public void requestAllLocationPermissions(PermissionUnityCallback cb) {
+        permissionCallback = cb;
         if (ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
                 || ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
                 || ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -186,43 +188,12 @@ public class PluginActivity extends UnityPlayerActivity {
                     Manifest.permission.ACCESS_COARSE_LOCATION,
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            }, REQUEST_CODE);
+            }, REQUEST_CODE_ALL);
         }
     }
 
-    @Override
-    protected void onStop() {
-        super.onStop();
-        // Unbind from the service
-        if (mBound) {
-            unbindService(mConnection);
-            mBound = false;
-        }
-    }
-
-    public void stopLocationService() {
-        Log.d(TAG, "Stop location service...");
-
-        if (isLocationServiceRunning) {
-            unityActivity.unbindService(mConnection);
-            unityActivity.stopService(currentIntent);
-        }
-        isLocationServiceRunning = false;
-    }
-
-    public void setDestination(double _latitude, double _longitude, String _destinationName, double _triggerRadius) {
-        Destination destination = new Destination();
-        destination.latitude = _latitude;
-        destination.longitude = _longitude;
-        destination.destinationName = _destinationName;
-        destination.triggerRadius = _triggerRadius;
-        Log.d(TAG, destination.latitude + "" + destination.longitude);
-        currentDestination = destination;
-        if (mBound) {
-            mService.setNewDestination(destination);
-        }
-    }
-
+    //endregion
+    //region [LocationGetters]
     // get last location latitude from locationService
     public double getLatitude() {
         double lat = -1;
@@ -318,6 +289,41 @@ public class PluginActivity extends UnityPlayerActivity {
         return prov;
     }
 
+    //endregion
+    //region [Base]
+    protected void onCreate(Bundle savedInstanceState) {
+        // call UnityPlayerActivity.onCreate()
+        super.onCreate(savedInstanceState);
+        Log.d(TAG, "onCreate called!");
+    }
+
+    @Override
+    public void onDestroy() {
+        stopLocationService();
+        super.onDestroy();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        // Unbind from the service
+        if (mBound) {
+            unbindService(mConnection);
+            mBound = false;
+        }
+    }
+    //endregion
+
+    private void initPlugin() {
+        try {
+            if (unityActivity == null) throw new Exception("Undefined UnityActivity!");
+            //
+            createNotificationChannels();
+        } catch(Exception _e) {
+            Log.e(TAG, _e.getMessage());
+        }
+    }
+
     public boolean isLocationServiceRunning() {
         return isLocationServiceRunning;
     }
@@ -325,6 +331,29 @@ public class PluginActivity extends UnityPlayerActivity {
     public void onBackPressed() {
         // instead of calling UnityPlayerActivity.onBackPressed() we just ignore the back button event
         // super.onBackPressed();
+    }
+
+    // Set notification channel for API Level >= 26
+    public static void createNotificationChannels() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel serviceChannel = new NotificationChannel(
+                    SERVICE_CHANNEL_ID,
+                    "ServiceChannel",
+                    NotificationManager.IMPORTANCE_HIGH
+            );
+            serviceChannel.setDescription("Notification Channel for Intent Service");
+
+            NotificationChannel notificationChannel = new NotificationChannel(
+                    NOTIFICATION_CHANNEL_ID,
+                    "NotificationChannel",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            notificationChannel.setDescription("Notification Channel for other Notifications");
+
+            NotificationManager manager = unityActivity.getSystemService(NotificationManager.class);
+            manager.createNotificationChannel(serviceChannel);
+            manager.createNotificationChannel(notificationChannel);
+        }
     }
 
     // Manage connection with bound service
@@ -359,17 +388,7 @@ public class PluginActivity extends UnityPlayerActivity {
                     case 0:
                         // location message received
                         Location newLocation = (Location)msg;
-                        /*UnityPlayer.UnitySendMessage(
-                                unityClassName,
-                                "OnLocationReceived",
-                                newLocation.getLatitude()
-                                        + ":" + newLocation.getLongitude()
-                                        + ":" + newLocation.getAltitude()
-                                        + ":" + newLocation.getAccuracy()
-                                        + ":" + newLocation.getBearing()
-                                        + ":" + newLocation.getSpeed()
-                                        + ":" + newLocation.getProvider()
-                        );*/
+
                         if (PluginActivity.unityCallback != null) {
                             Log.d(TAG, "Before on success");
                             PluginActivity.unityCallback.onSuccess(
@@ -393,13 +412,4 @@ public class PluginActivity extends UnityPlayerActivity {
         }
     }
 
-    @Override
-    public void onDestroy() {
-        stopLocationService();
-        super.onDestroy();
-    }
-
-    public void setCallBackListener(UnityCallback callback) {
-        unityCallback = callback;
-    }
 }
