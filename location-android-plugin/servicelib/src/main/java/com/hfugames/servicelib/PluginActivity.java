@@ -65,20 +65,18 @@ public class PluginActivity extends UnityPlayerActivity {
         try {
             if (unityActivity == null) throw new Exception("Undefined UnityActivity!");
             createNotificationChannels();
-
-            if (ActivityCompat.shouldShowRequestPermissionRationale(unityActivity, Manifest.permission.ACCESS_FINE_LOCATION)) {
-                ActivityCompat.requestPermissions(unityActivity, new String[]{
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                }, REQUEST_CODE);
-            }
-
-            if (ActivityCompat.shouldShowRequestPermissionRationale(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION)) {
-                ActivityCompat.requestPermissions(unityActivity, new String[]{
-                        Manifest.permission.ACCESS_BACKGROUND_LOCATION
-                }, REQUEST_CODE);
-            }
         } catch(Exception _e) {
             Log.e(TAG, _e.getMessage());
+        }
+    }
+
+    private void backgroundLocationPermissionRationale() {
+        // will return true only if the application was launched earlier and the user
+        // "denied" the permission WITHOUT checking "never ask again".
+        if (ActivityCompat.shouldShowRequestPermissionRationale(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION)) {
+            ActivityCompat.requestPermissions(unityActivity, new String[]{
+                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            }, REQUEST_CODE);
         }
     }
 
@@ -126,18 +124,23 @@ public class PluginActivity extends UnityPlayerActivity {
         }
     }
 
+    private boolean backgroundLocationPermissionGranted () {
+        return ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
     public void startLocationService(int _interval, int _fastestInterval, int _smallestDisplacement, boolean _asForeground, String _foregroundIcon, String _notificationIcon) {
         try {
             if (isLocationServiceRunning) throw new Exception("Location Service already running!");
             if (unityActivity == null) throw new Exception("Undefined UnityActivity!");
 
-            if (ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    && ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    || ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    || ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED) {/*
                 ActivityCompat.requestPermissions(unityActivity, new String[]{
                         Manifest.permission.ACCESS_FINE_LOCATION,
                         Manifest.permission.ACCESS_BACKGROUND_LOCATION
                 }, REQUEST_CODE);
-            } else {
+            } else {*/
                 currentIntent = new Intent(unityActivity, LocationService.class);
                 currentIntent.putExtra(MESSENGER_EXTRA, new Messenger(messageHandler));
                 currentIntent.putExtra(SMALLEST_DISPLACEMENT_EXTRA, _smallestDisplacement);
@@ -153,6 +156,42 @@ public class PluginActivity extends UnityPlayerActivity {
             }
         } catch (Exception _e) {
             Log.e(TAG, _e.getMessage());
+        }
+    }
+
+    public void requestCoarseLocationPermission() {
+        if (ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(unityActivity, new String[]{
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            }, REQUEST_CODE);
+        }
+    }
+
+    public void requestFineLocationPermission() {
+        if (ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(unityActivity, new String[]{
+                    Manifest.permission.ACCESS_FINE_LOCATION
+            }, REQUEST_CODE);
+        }
+    }
+
+    public void requestBackgroundLocationPermission() {
+        if (ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(unityActivity, new String[]{
+                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            }, REQUEST_CODE);
+        }
+    }
+
+    public void requestAllLocationPermissions() {
+        if (ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                || ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                || ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(unityActivity, new String[]{
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            }, REQUEST_CODE);
         }
     }
 
