@@ -64,6 +64,7 @@ public class PluginActivity extends UnityPlayerActivity {
     private void initPlugin() {
         try {
             if (unityActivity == null) throw new Exception("Undefined UnityActivity!");
+            //
             createNotificationChannels();
         } catch(Exception _e) {
             Log.e(TAG, _e.getMessage());
@@ -124,8 +125,10 @@ public class PluginActivity extends UnityPlayerActivity {
         }
     }
 
-    private boolean backgroundLocationPermissionGranted () {
-        return ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    private boolean locationPermissionGranted () {
+        return ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
     public void startLocationService(int _interval, int _fastestInterval, int _smallestDisplacement, boolean _asForeground, String _foregroundIcon, String _notificationIcon) {
@@ -133,27 +136,19 @@ public class PluginActivity extends UnityPlayerActivity {
             if (isLocationServiceRunning) throw new Exception("Location Service already running!");
             if (unityActivity == null) throw new Exception("Undefined UnityActivity!");
 
-            if (ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                    || ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-                    || ActivityCompat.checkSelfPermission(unityActivity, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED) {/*
-                ActivityCompat.requestPermissions(unityActivity, new String[]{
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_BACKGROUND_LOCATION
-                }, REQUEST_CODE);
-            } else {*/
-                currentIntent = new Intent(unityActivity, LocationService.class);
-                currentIntent.putExtra(MESSENGER_EXTRA, new Messenger(messageHandler));
-                currentIntent.putExtra(SMALLEST_DISPLACEMENT_EXTRA, _smallestDisplacement);
-                currentIntent.putExtra(INTERVAL_EXTRA, _interval);
-                currentIntent.putExtra(FASTEST_INTERVAL_EXTRA, _fastestInterval);
-                currentIntent.putExtra(INTENT_FOREGROUND_EXTRA, _asForeground);
-                currentIntent.putExtra(INTENT_FOREGROUND_ICON_EXTRA, _foregroundIcon);
-                currentIntent.putExtra(INTENT_NOTIFICATION_ICON_EXTRA, _notificationIcon);
+            currentIntent = new Intent(unityActivity, LocationService.class);
+            currentIntent.putExtra(MESSENGER_EXTRA, new Messenger(messageHandler));
+            currentIntent.putExtra(SMALLEST_DISPLACEMENT_EXTRA, _smallestDisplacement);
+            currentIntent.putExtra(INTERVAL_EXTRA, _interval);
+            currentIntent.putExtra(FASTEST_INTERVAL_EXTRA, _fastestInterval);
+            currentIntent.putExtra(INTENT_FOREGROUND_EXTRA, _asForeground);
+            currentIntent.putExtra(INTENT_FOREGROUND_ICON_EXTRA, _foregroundIcon);
+            currentIntent.putExtra(INTENT_NOTIFICATION_ICON_EXTRA, _notificationIcon);
 
-                unityActivity.startService(currentIntent);
-                unityActivity.bindService(currentIntent, mConnection, Context.BIND_AUTO_CREATE);
-                isLocationServiceRunning = true;
-            }
+            unityActivity.startService(currentIntent);
+            unityActivity.bindService(currentIntent, mConnection, Context.BIND_AUTO_CREATE);
+            isLocationServiceRunning = true;
+
         } catch (Exception _e) {
             Log.e(TAG, _e.getMessage());
         }
